@@ -18,6 +18,8 @@
 #include <ros_omron_agv/Omron.h>
 #include <std_srvs/Empty.h>
 
+#include <nav_msgs/Odometry.h>
+
 #include <cmath>
 
 class statusPub
@@ -48,7 +50,7 @@ public:
 
 protected:
 
-  ros::Publisher pose_pub, status_pub;
+  ros::Publisher pose_pub, status_pub, odom_pub;
   ArClientBase *myClient;
   ros::NodeHandle *_nh;
   ros::Subscriber sub_goal, sub_initpose;
@@ -122,6 +124,9 @@ statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name
   //Advertise Publisher
   status_pub = _nh->advertise<ros_omron_agv::Omron>("robot_status", 100);
 
+  // Advertise odom
+  odom_pub = _nh->advertise<nav_msgs::Odometry>("odom", 50);
+
   //Cmd vel
   cmdVelSub = _nh->subscribe("cmd_vel", 10, &statusPub::cmdVelCB, this); //register callback
   timer=_nh->createTimer(ros::Duration(0.2), &statusPub::cmdVelWD, this);
@@ -160,6 +165,18 @@ void statusPub::pose_cb(ArNetPacket *packet)
   currentPose.pose.position.x = x/1000.0;
   currentPose.pose.position.y = y/1000.0;
   currentPose.pose.position.z = 0;
+
+  // Odometry publication
+  nav_msgs::Odometry odom;
+  odom.header.stamp = ros::Time::now();
+  odom.header.frame_id = "base_link";
+  odom.pose.pose = currentPose.pose;
+  odom.twist.twist.linear.x = x_vel/1000.0;
+  odom.twist.twist.linear.y = y_vel/1000.0;
+  odom.twist.twist.angular.z = angles::from_degrees(theta_vel);
+  odom_pub.publish(odom);
+
+
 
   ros_omron_agv::Omron data;
   data.batteryPercentage = batVolt;

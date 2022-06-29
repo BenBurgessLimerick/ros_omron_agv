@@ -1,0 +1,1 @@
+scp -r * frankie@mobileman:omron_ws/src/ros_omron_agv

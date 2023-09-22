@@ -22,6 +22,11 @@
 
 #include <cmath>
 
+// These must match whatever is set in MobilePlanner!
+#define MAX_FORWARD_SPEED (1.0)
+#define MAX_REVERSE_SPEED (0.25)
+#define MAX_ROT_SPEED (50.0 * 3.14159265358979 / 180.0)
+
 class statusPub
 {
 public:
@@ -389,11 +394,28 @@ void statusPub::moveExecteCB(const move_base_msgs::MoveBaseGoalConstPtr &goal){
 
 void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr& msg){
   velCount++;
-  if (fabs(msg->linear.x) > 0.001 || fabs(msg->angular.z) > 0.001){
+  float vx = msg->linear.x;	
+  float omega = msg->angular.z;
+
+  if (vx > MAX_FORWARD_SPEED || vx < -MAX_REVERSE_SPEED || fabs(omega) > MAX_ROT_SPEED) {
+	vel_valid = false;
+	ROS_INFO("Commanded velocity over greater than max, velocity is in m/s! Are you sure??");
+	return;
+  }
+
+  if (vx >= 0) {
+	  vx *= (100.0 / MAX_FORWARD_SPEED);
+  } else {
+	  vx *= (100.0 / MAX_REVERSE_SPEED);
+  }
+
+  omega *= (100.0 / MAX_ROT_SPEED);
+
+  if (fabs(vx) > 0.001 || fabs(omega) > 0.001){
     ArNetPacket packet;
     vel_valid = true;
-    packet.doubleToBuf(msg->linear.x);
-    packet.doubleToBuf(msg->angular.z);
+    packet.doubleToBuf(vx);
+    packet.doubleToBuf(omega);
     packet.doubleToBuf(100); // this is an additional amount (percentage) that is applied to each of the trans,rot,lat velocities. 
     packet.doubleToBuf(0.0);
   //  if (myPrinting) printf("ArClientRatioDrive: Sending ratioDrive request\n");

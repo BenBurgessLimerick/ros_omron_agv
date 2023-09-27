@@ -411,7 +411,8 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr& msg){
 
   omega *= (100.0 / MAX_ROT_SPEED);
 
-  if (fabs(vx) > 0.001 || fabs(omega) > 0.001){
+  // Need to send even if velocity is 0 if we want robot to stop immediately. 
+  if (fabs(vx) > 0.001 || fabs(omega) > 0.001 || true){
     ArNetPacket packet;
     vel_valid = true;
     packet.doubleToBuf(vx);

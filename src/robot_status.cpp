@@ -22,7 +22,6 @@
 
 #include <cmath>
 
-// These must match whatever is set in MobilePlanner!
 #define MAX_FORWARD_SPEED (1.0)
 #define MAX_REVERSE_SPEED (0.25)
 #define MAX_ROT_SPEED (50.0 * 3.14159265358979 / 180.0)
@@ -34,6 +33,11 @@ public:
   statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name="Pose", std::string topic="/pose"); 
   //The laser callback is called when data is sent from the robot and publishes to ROS
   void pose_cb(ArNetPacket *packet);
+
+  void pos_x_cb(ArNetPacket *packet);
+  void pos_y_cb(ArNetPacket *packet);
+  void theta_cb(ArNetPacket *packet);
+
   void status_cb(ArNetPacket *packet);
   void dock_stats_cb(ArNetPacket *packet);
   void simplePoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
@@ -46,6 +50,7 @@ public:
     return true;
   } 
 
+  double posX, posY, posTheta, xVel, thetaVel;
   //Public robot stats
   int robotMode = 0;
   int robotStatus = 0;
@@ -63,6 +68,9 @@ protected:
 
   //Don't understand the ArFunctors but this is how they do it
   ArFunctor1C<statusPub, ArNetPacket *> myPoseCB;
+  ArFunctor1C<statusPub, ArNetPacket *> myXCB;
+  ArFunctor1C<statusPub, ArNetPacket *> myYCB;
+  ArFunctor1C<statusPub, ArNetPacket *> myThCB;
   ArFunctor1C<statusPub, ArNetPacket *> myStatusCB;
   ArFunctor1C<statusPub, ArNetPacket *> dockedStatusCB;
 
@@ -96,7 +104,11 @@ protected:
 //Setup setup callbac stuff
 statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name, std::string topic) : 
       myClient(client), _nh(nh), 
-      myPoseCB(this, &statusPub::pose_cb), dockedStatusCB(this, &statusPub::dock_stats_cb),
+      myPoseCB(this, &statusPub::pose_cb),  
+      myXCB(this, &statusPub::pos_x_cb), 
+      myYCB(this, &statusPub::pos_y_cb), 
+      myThCB(this, &statusPub::theta_cb), 
+      dockedStatusCB(this, &statusPub::dock_stats_cb),
       myStatusCB(this, &statusPub::status_cb),
       as_(*_nh, "move_base",  boost::bind(&statusPub::moveExecteCB, this, _1), false)
 {
@@ -108,8 +120,8 @@ statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name
   sub_initpose = _nh->subscribe("/initialpose", 10, &statusPub::LocaliseCallback, this);
   ros::spinOnce;     
 
-  myClient->addHandler("updateNumbers", &myPoseCB);
-  myClient->request("updateNumbers", 50); //Seems if we request rate of 50 we get 10hz max
+  // myClient->addHandler("updateNumbers", &myPoseCB);
+  // myClient->request("updateNumbers", 50); //Seems if we request rate of 50 we get 10hz max
 
   myClient->addHandler("updateStrings", &myStatusCB);
   myClient->request("updateStrings", -1); //request when changed
@@ -117,6 +129,16 @@ statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name
   myClient->addHandler("dockInfoChanged", &dockedStatusCB);
   myClient->requestOnce("dockInfoChanged");
   myClient->request("dockInfoChanged", -1);
+
+  int period = 30;  // Seems to cap at around 37 Hz
+  // TODO: Not sure if this is the best pose???
+  myClient->addHandler("DataStore_RobotPoseInterpolated_X", &myXCB);
+  myClient->request("DataStore_RobotPoseInterpolated_X", period); 
+  myClient->addHandler("DataStore_RobotPoseInterpolated_Y", &myYCB);
+  myClient->request("DataStore_RobotPoseInterpolated_Y", period); 
+  myClient->addHandler("DataStore_RobotPoseInterpolated_Th", &myThCB);
+  myClient->request("DataStore_RobotPoseInterpolated_Th", period); 
+
 
   ROS_INFO("Setup Callback for %s publishing on %s",name.c_str(), topic.c_str());
 
@@ -140,24 +162,17 @@ statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name
   vel_valid = false;
 }
 
-void statusPub::pose_cb(ArNetPacket *packet)
-{
-  double batVolt, x , y, theta, x_vel, y_vel, theta_vel, temp;
-
-  batVolt = ( (double) packet->bufToByte2() )/10.0;
-  x = (double) packet->bufToByte4();
-  y = (double) packet->bufToByte4();
-  theta = (double) packet->bufToByte2();
-  x_vel = (double) packet->bufToByte2();
-  theta_vel = (double) packet->bufToByte2();
-  y_vel = (double) packet->bufToByte2();
-  temp = (double) packet->bufToByte();
+void statusPub::pos_x_cb(ArNetPacket *packet) {
+  char out[10];
+  packet->bufToStr(out, 10);
+  posX = std::atof(&out[1]);
+  // std::cout << "x: " << out << " " << x << std::endl;
 
   static tf::TransformBroadcaster br; 
   tf::Transform transform;
-  transform.setOrigin( tf::Vector3(x/1000.0, y/1000.0, 0.0) );
+  transform.setOrigin( tf::Vector3(posX/1000.0, posY/1000.0, 0.0) );
   tf::Quaternion q;
-  q.setRPY(0, 0, angles::from_degrees(theta/1.0)); //TODO this is bit shit there is better numbers around
+  q.setRPY(0, 0, angles::from_degrees(posTheta/1.0)); //TODO this is bit shit there is better numbers around
   transform.setRotation(q);
   br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base_link"));
 
@@ -167,8 +182,8 @@ void statusPub::pose_cb(ArNetPacket *packet)
   currentPose.pose.orientation.y = q.getY();
   currentPose.pose.orientation.z = q.getZ();
   currentPose.pose.orientation.w = q.getW();
-  currentPose.pose.position.x = x/1000.0;
-  currentPose.pose.position.y = y/1000.0;
+  currentPose.pose.position.x = posX/1000.0;
+  currentPose.pose.position.y = posY/1000.0;
   currentPose.pose.position.z = 0;
 
   // Odometry publication
@@ -176,19 +191,82 @@ void statusPub::pose_cb(ArNetPacket *packet)
   odom.header.stamp = ros::Time::now();
   odom.header.frame_id = "base_link";
   odom.pose.pose = currentPose.pose;
-  odom.twist.twist.linear.x = x_vel/1000.0;
-  odom.twist.twist.linear.y = y_vel/1000.0;
-  odom.twist.twist.angular.z = angles::from_degrees(theta_vel);
+  odom.twist.twist.linear.x = xVel/1000.0;
+  odom.twist.twist.linear.y = 0/1000.0;
+  odom.twist.twist.angular.z = angles::from_degrees(thetaVel);
   odom_pub.publish(odom);
+}
 
+void statusPub::pos_y_cb(ArNetPacket *packet) {
+  char out[10];
+  packet->bufToStr(out, 10);
+  posY = std::atof(&out[1]);
+  // std::cout << "y: " << out << " " << y << std::endl;
+}
+void statusPub::theta_cb(ArNetPacket *packet) {
+  char out[10];
+  packet->bufToStr(out, 10);
+  posTheta = std::atof(&out[1]);
+  // std::cout << "theta: " << out << " " << theta << std::endl;
+}
 
+void statusPub::pose_cb(ArNetPacket *packet)
+{
+  double batVolt, x , y, theta, x_vel, y_vel, theta_vel, temp;
 
+  // packet->printHex();
+  batVolt = ( (double) packet->bufToByte2() )/10.0;
+  x = (double) packet->bufToByte4();
+  y = (double) packet->bufToByte4();
+  theta = (double) packet->bufToByte2();
+  x_vel = (double) packet->bufToByte2();
+  theta_vel = (double) packet->bufToByte2();
+  y_vel = (double) packet->bufToByte2();
+  temp = (double) packet->bufToByte();
+
+  xVel = x_vel;
+  thetaVel = theta_vel;
+  
   ros_omron_agv::Omron data;
   data.batteryPercentage = batVolt;
   data.dockStatus = dock_status;
   data.robotStatus = robotStatus;
   //publish the status data
   status_pub.publish(data);
+
+  return;
+  // std::cout << batVolt << " " << x << " " << y << " " << theta << std::endl;
+  // static tf::TransformBroadcaster br; 
+  // tf::Transform transform;
+  // transform.setOrigin( tf::Vector3(x/1000.0, y/1000.0, 0.0) );
+  // tf::Quaternion q;
+  // q.setRPY(0, 0, angles::from_degrees(theta/1.0)); //TODO this is bit shit there is better numbers around
+  // transform.setRotation(q);
+  // br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base_link"));
+
+  // currentPose.header.frame_id = "base_link";
+  // currentPose.header.stamp = ros::Time::now();
+  // currentPose.pose.orientation.x = q.getX();
+  // currentPose.pose.orientation.y = q.getY();
+  // currentPose.pose.orientation.z = q.getZ();
+  // currentPose.pose.orientation.w = q.getW();
+  // currentPose.pose.position.x = x/1000.0;
+  // currentPose.pose.position.y = y/1000.0;
+  // currentPose.pose.position.z = 0;
+
+  // // Odometry publication
+  // nav_msgs::Odometry odom;
+  // odom.header.stamp = ros::Time::now();
+  // odom.header.frame_id = "base_link";
+  // odom.pose.pose = currentPose.pose;
+  // odom.twist.twist.linear.x = x_vel/1000.0;
+  // odom.twist.twist.linear.y = y_vel/1000.0;
+  // odom.twist.twist.angular.z = angles::from_degrees(theta_vel);
+  // odom_pub.publish(odom);
+
+
+
+  
 }
 
 void statusPub::status_cb(ArNetPacket *packet)
@@ -411,7 +489,6 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr& msg){
 
   omega *= (100.0 / MAX_ROT_SPEED);
 
-  // Need to send even if velocity is 0 if we want robot to stop immediately. 
   if (fabs(vx) > 0.001 || fabs(omega) > 0.001 || true){
     ArNetPacket packet;
     vel_valid = true;
@@ -496,6 +573,24 @@ int main(int argc, char **argv)
   }
   //NO PASSWD
   args.addPlain("-np");
+
+  // ArArgumentBuilder *args2 = new ArArgumentBuilder();
+  // args2->add("-remoteHost");
+  // args2->add("172.19.21.203");
+  // args2->add("-remoteRobotTcpPort");
+  // args2->add("7272");
+  // args2->add("-u");
+  // args2->add("steve");
+  // args2->add("-np");
+
+  // ArArgumentParser *argparser = new ArArgumentParser(args2);
+  // ArRobot *robot = new ArRobot();
+  // ArRobotConnector *conn = new ArRobotConnector(argparser, robot);
+  
+  // if (!conn->connectRobot()) {
+  //   ROS_ERROR("Could not connect to Omron\n");
+  //   exit(1);
+  // }
 
   ArClientSimpleConnector clientConnector(&args);
 

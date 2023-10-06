@@ -163,8 +163,8 @@ statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name
 }
 
 void statusPub::pos_x_cb(ArNetPacket *packet) {
-  char out[10];
-  packet->bufToStr(out, 10);
+  char out[20];
+  packet->bufToStr(out, 20);
   posX = std::atof(&out[1]);
   // std::cout << "x: " << out << " " << x << std::endl;
 
@@ -198,14 +198,14 @@ void statusPub::pos_x_cb(ArNetPacket *packet) {
 }
 
 void statusPub::pos_y_cb(ArNetPacket *packet) {
-  char out[10];
-  packet->bufToStr(out, 10);
+  char out[20];
+  packet->bufToStr(out, 20);
   posY = std::atof(&out[1]);
   // std::cout << "y: " << out << " " << y << std::endl;
 }
 void statusPub::theta_cb(ArNetPacket *packet) {
-  char out[10];
-  packet->bufToStr(out, 10);
+  char out[20];
+  packet->bufToStr(out, 20);
   posTheta = std::atof(&out[1]);
   // std::cout << "theta: " << out << " " << theta << std::endl;
 }

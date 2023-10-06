@@ -120,8 +120,8 @@ statusPub::statusPub(ArClientBase *client, ros::NodeHandle *nh, std::string name
   sub_initpose = _nh->subscribe("/initialpose", 10, &statusPub::LocaliseCallback, this);
   ros::spinOnce;     
 
-  // myClient->addHandler("updateNumbers", &myPoseCB);
-  // myClient->request("updateNumbers", 50); //Seems if we request rate of 50 we get 10hz max
+  myClient->addHandler("updateNumbers", &myPoseCB);
+  myClient->request("updateNumbers", 50); //Seems if we request rate of 50 we get 10hz max
 
   myClient->addHandler("updateStrings", &myStatusCB);
   myClient->request("updateStrings", -1); //request when changed

@@ -478,6 +478,8 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr& msg){
   if (vx > MAX_FORWARD_SPEED || vx < -MAX_REVERSE_SPEED || fabs(omega) > MAX_ROT_SPEED) {
 	vel_valid = false;
 	ROS_INFO("Commanded velocity over greater than max, velocity is in m/s! Are you sure??");
+  ROS_INFO("Max Forward: %f, Max Reverse: %f, Commanded: %f", MAX_FORWARD_SPEED, MAX_REVERSE_SPEED, vx);
+  ROS_INFO("Max Turn: %f, Commanded Turn: %f", MAX_ROT_SPEED, omega);
 	return;
   }
 

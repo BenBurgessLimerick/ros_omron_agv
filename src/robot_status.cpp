@@ -489,7 +489,7 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr& msg){
 
   omega *= (100.0 / MAX_ROT_SPEED);
 
-  if (fabs(vx) > 0.001 || fabs(omega) > 0.001 || true){
+  if (fabs(vx) > 0.001 || fabs(omega) > 0.001){
     ArNetPacket packet;
     vel_valid = true;
     packet.doubleToBuf(vx);
@@ -500,6 +500,10 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr& msg){
     myClient->requestOnce("ratioDrive", &packet);
   }
   else {
+    if (vel_valid) {
+      myClient->requestOnce("stop");
+    }
+    
     vel_valid = false;
   }
 

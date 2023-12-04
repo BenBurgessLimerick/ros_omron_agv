@@ -59,6 +59,9 @@ add_dependencies(robot_status_node ros_omron_agv_generate_messages_cpp)
 add_executable(map_node src/map_server.cpp)
 add_dependencies(map_node ros_omron_agv_generate_messages_cpp)
 
+add_executable(speech_node src/omron_speech_node.cpp)
+add_dependencies(speech_node ros_omron_agv_generate_messages_cpp)
+
 target_link_libraries(omron_laser_node
   ${catkin_LIBRARIES}
 )
@@ -71,11 +74,15 @@ target_link_libraries(map_node
   ${catkin_LIBRARIES}
 )
 
+target_link_libraries(speech_node
+  ${catkin_LIBRARIES}
+)
+
 #############
 ## Install ##
 #############
 
-install(TARGETS omron_laser_node robot_status_node map_node
+install(TARGETS omron_laser_node robot_status_node map_node speech_node
    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

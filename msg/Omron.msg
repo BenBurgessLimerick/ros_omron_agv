@@ -9,7 +9,5 @@ uint8 DOCKED = 2
 uint8 robotStatus
 #use actionlib status
 
-
-
-
-
+float32 batteryVoltage
+float32 currentDraw

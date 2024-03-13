@@ -509,10 +509,17 @@ void statusPub::moveExecteCB(const move_base_msgs::MoveBaseGoalConstPtr &goal)
             success = true;
             as_.setSucceeded(result_);
         }
-        if (robotStatus == actionlib_msgs::GoalStatus::ABORTED ||
-            robotStatus == actionlib_msgs::GoalStatus::REJECTED)
+        if (robotStatus == actionlib_msgs::GoalStatus::ABORTED)
         {
-            ROS_INFO("%s: Failed getting to Goal", "Move Base");
+            ROS_INFO("%s: Aborted and failed getting to Goal", "Move Base");
+            running = false;
+            success = false;
+            as_.setAborted(result_);
+        }
+
+        if (robotStatus == actionlib_msgs::GoalStatus::REJECTED)
+        {
+            ROS_INFO("%s: Rejeceted because couldn't find path", "Move Base");
             running = false;
             success = false;
             as_.setAborted(result_);
@@ -544,6 +551,7 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr &msg)
         return;
     }
 
+    // ROS_INFO("Got request in real units! %f, %f", vx, omega);
     if (vx >= 0)
     {
         vx *= (100.0 / MAX_FORWARD_SPEED);
@@ -555,7 +563,7 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr &msg)
 
     omega *= (100.0 / MAX_ROT_SPEED);
 
-    if (fabs(vx) > 0.001 || fabs(omega) > 0.001)
+    if (fabs(vx) > 2 || fabs(omega) > 2) // These are in % here
     {
         ArNetPacket packet;
         vel_valid = true;
@@ -567,12 +575,14 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr &msg)
         packet.doubleToBuf(0.0);
         //  if (myPrinting) printf("ArClientRatioDrive: Sending ratioDrive
         //  request\n");
+        // ROS_INFO("Sending ratio drive request! %f, %f", vx, omega);
         myClient->requestOnce("ratioDrive", &packet);
     }
     else
     {
         if (vel_valid)
         {
+            ROS_INFO("Requesting stop!");
             myClient->requestOnce("stop");
         }
 

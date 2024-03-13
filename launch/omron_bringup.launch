@@ -9,6 +9,7 @@
   <remap from="laser" to="/frankie/laser" />
   <remap from="laser_low" to="/frankie/laser_low" />
   <remap from="odom" to="/frankie/odom" />
+  <remap from="robot_status" to="/frankie/omron_status" />
   <node pkg="ros_omron_agv" type="omron_laser_node" name="lasers" output="screen" respawn="false" respawn_delay="0">
     <param name="host" type="str" value="$(arg host)"/>
     <param name="port" type="str" value="$(arg port)"/>

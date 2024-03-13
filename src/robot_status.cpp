@@ -563,7 +563,7 @@ void statusPub::cmdVelCB(const geometry_msgs::Twist::ConstPtr &msg)
 
     omega *= (100.0 / MAX_ROT_SPEED);
 
-    if (fabs(vx) > 2 || fabs(omega) > 2) // These are in % here
+    if (fabs(vx) > 0.1 || fabs(omega) > 0.1) // These are in % here
     {
         ArNetPacket packet;
         vel_valid = true;
